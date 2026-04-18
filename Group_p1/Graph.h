@@ -4,6 +4,7 @@
 #include <string>
 #include "Vertex.h"
 #include "Edge.h"
+#include "MinHeap.h"
 using namespace std;
 
 template <typename T>
@@ -39,7 +40,7 @@ class Graph {
         void clean_visited();
         void DFS_helper(Vertex<T>& ver);
         int get_vertex_index(const Vertex<T>& ver);
-
+        vector<string> vertex_cities;
         //Undirected Graph G_u 
         Graph<T>* cost_graph_data; 
         //helper functions for kruskal 

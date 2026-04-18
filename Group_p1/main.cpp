@@ -35,9 +35,6 @@ int main() {
         cout << "--- Task 3: Shortest Paths to State ---" << endl;
         cout << "Shortest paths from ATL to FL state airports are:" << endl;
         airportGraph.short_paths_state(vATL, "FL");
-        //airportGraph.short_paths_state(vATL, "TPA");
-        //airportGraph.short_paths_state(vATL, "MIA");
-        //airportGraph.short_paths_state(vATL, "MCO");
         cout << endl;
 
         cout << "--- Task 4: Shortest Path with Stops ---" << endl;

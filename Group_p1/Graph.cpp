@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+//#include <algorithm>
 
 using namespace std;
 
@@ -139,44 +140,60 @@ Return: void - nothing
 */
 template<typename T>
 Graph<T>::Graph(const string& filename) : cost_graph_data(nullptr) {
-    ifstream file(filename); //open file for reading 
-    string line; //variable to store lines of file
+    ifstream file(filename);
+    string line;
 
     if(!file.is_open()) {
-        throw string("Could not open file\n"); 
+        throw string("Could not open file\n");
     }
-    getline(file,line); //skips header of the file 
-    while(getline(file,line)) { //read each line of the file
-        if(line.empty()) {
-            continue;
-        }
-        string fields[6];//array to store the 6 fields of the csv line
-        size_t start = 0; 
+    getline(file, line); // skip header
 
-        for(int i = 0; i < 6; i++) { //handles commans and quotes in the CSV file EX: "Tampa, FL"
+    while(getline(file, line)) {
+        if(line.empty()) continue;
+
+        string fields[6];
+        size_t start = 0;
+
+        for(int i = 0; i < 6; i++) {
             if(start < line.length() && line[start] == '"') {
                 start++;
-                size_t end = line.find('"', start); 
-                fields[i] = line.substr(start, end - start); 
-                start = line.find(',', end) + 1; 
+                size_t end = line.find('"', start);
+                fields[i] = line.substr(start, end - start);
+                start = line.find(',', end) + 1;
             } else {
                 size_t next = line.find(',', start);
                 fields[i] = line.substr(start, next - start);
                 start = next + 1;
             }
         }
-        Vertex<T> v1(fields[0]); //create vertex for source airport using first field of csv line
-        Vertex<T> v2(fields[1]); //create vertex for destination airport using second field of csv line
-        int distance = stoi(fields[4]);//convert distance field of csv line to int
-        int cost = stoi(fields[5]);//convert cost field of csv line to int
-        
-        insert_vertex(v1);//insert vertex into graph 
-        insert_vertex(v2);
 
-        int i1 = get_vertex_index(v1);//get index of source vertex in graph
+        // Store "CODE (City, ST)" so state is searchable
+        string label1 = fields[0] + " (" + fields[2] + ")";
+        string label2 = fields[1] + " (" + fields[3] + ")";
+
+        // After parsing fields...
+        Vertex<T> v1(fields[0]); // "ATL" — unchanged
+        Vertex<T> v2(fields[1]); // "TPA" — unchanged
+
+        int distance = stoi(fields[4]);
+        int cost     = stoi(fields[5]);
+
+        // Insert vertices and track cities
+        if(get_vertex_index(v1) == -1) {
+            insert_vertex(v1);
+            vertex_cities.push_back(fields[2]); // "Atlanta, GA"
+        }
+        if(get_vertex_index(v2) == -1) {
+            insert_vertex(v2);
+            vertex_cities.push_back(fields[3]); // "Tampa, FL"
+        }
+
+        int i1 = get_vertex_index(v1);
         int i2 = get_vertex_index(v2);
-        if(i1 != -1 && i2 != -1) {//if both vertices inserted, add  edge between them with dist as weight and cost 
+        if(i1 != -1 && i2 != -1) {
             edges[i1].push_back(Edge(i1, i2, distance, cost));
+            if(i1 != i2)
+                edges[i2].push_back(Edge(i2, i1, distance, cost));
         }
     }
     file.close();
@@ -268,44 +285,42 @@ Return: void - nothing
 */
 template<typename T>
 void Graph<T>::short_paths_state(const Vertex<T>& src, const string& state) {
-    int i_src = get_vertex_index(src); //get index of source vertex 
-    if (i_src == -1) { //check if airport exists in graph 
+    int i_src = get_vertex_index(src);
+    if (i_src == -1) {
         cout << "Origin airport not found." << endl;
         return;
     }
-    //Basically copied Dijkstra's algorithm but instead of stopping when reached,
-    //destination vertex, continue until all vertices have been visited.
-    //Check which of those vertices belong to the destination state and output
-    //the paths and distances to those vertices.
-    clean_visited(); //reset visited status 
-    vector<int> distances(vertices.size(), INT_MAX); //distance as infinity 
-    vector<int> parent(vertices.size(), -1); //reconstruct path 
-    vector<int> total_costs(vertices.size(), 0); //total cost to reach each vertex 
-    distances[i_src] = 0; 
 
-    MinHeap<Edge> heap; // store edges for shortest distance 
+    clean_visited();
+    vector<int> distances(vertices.size(), INT_MAX);
+    vector<int> parent(vertices.size(), -1);
+    vector<int> total_costs(vertices.size(), 0);
+    distances[i_src] = 0;
+
+    MinHeap<Edge> heap;
     int cur_ver = i_src;
     int visited_count = 0;
-    while (visited_count < vertices.size()) { //unvisited vertices
-        int u = cur_ver; //current vertex index
-        for (int j = 0; j < edges[u].size(); j++) {//iterate through adjacent edges of current vertex
+
+    while (visited_count < vertices.size()) {
+        int u = cur_ver;
+        for (int j = 0; j < edges[u].size(); j++) {
             int v = edges[u][j].dest;
-            if (!vertices[v].getVisited()) { //if not visitd, add edge 
-                heap.insert(edges[u][j]); //check path U is shorter than V 
-                int new_dist = distances[u] + edges[u][j].weight;//if path is short then update the distance and parent 
+            if (!vertices[v].getVisited()) {
+                heap.insert(edges[u][j]);
+                int new_dist = distances[u] + edges[u][j].weight;
                 if (new_dist < distances[v]) {
                     distances[v] = new_dist;
                     parent[v] = u;
-                    total_costs[v] = total_costs[u] + edges[u][j].cost; //update total cost to reach v 
+                    total_costs[v] = total_costs[u] + edges[u][j].cost;
                 }
             }
         }
-        vertices[u].setVisited(true);//mark curr as visited 
-        visited_count++; 
-        bool found_next = false; //get next vertex 
-        while (!heap.isEmpty()) {//if heap is empty then there are no reachable nodes 
+        vertices[u].setVisited(true);
+        visited_count++;
+        bool found_next = false;
+        while (!heap.isEmpty()) {
             Edge e = heap.delete_min();
-            if (!vertices[e.dest].getVisited()) {//if dest vertex of edge is not visited, set it as current vertex and break 
+            if (!vertices[e.dest].getVisited()) {
                 cur_ver = e.dest;
                 found_next = true;
                 break;
@@ -314,30 +329,28 @@ void Graph<T>::short_paths_state(const Vertex<T>& src, const string& state) {
         if (!found_next) break;
     }
     bool found = false;
-    //iterate through vertices to find which go with destination state and output path and distance to those vertices
     for (int i = 0; i < vertices.size(); i++) {
-        // check if vertex belongs to state
-        if (vertices[i].getData().find(state) != string::npos) {//if found the it belong to the state 
+        if (vertex_cities[i].find(state) != string::npos) {
             if (distances[i] != INT_MAX) {
                 found = true;
-                vector<T> path;//reconstruct path from dest to source using parent arr
-                for (int cur = i; cur != -1; cur = parent[cur]) {
+                vector<T> path;
+                for (int cur = i; cur != -1; cur = parent[cur])
                     path.push_back(vertices[cur].getData());
-                }
-                cout << "Shortest route to " << vertices[i].getData() << ": ";
-                for (int p = path.size() - 1; p >= 0; p--) {
+
+                cout << "Shortest route to " << vertices[i].getData()
+                     << " (" << vertex_cities[i] << "): ";
+                for (int p = path.size() - 1; p >= 0; p--)
                     cout << path[p] << (p == 0 ? "" : " -> ");
-                }
-                cout <<". The length is "<<distances[i]<<". The cost is "<<total_costs[i]<<"."<< endl;
+                cout << ". The length is " << distances[i]
+                     << ". The cost is " << total_costs[i] << "." << endl;
             }
         }
     }
-    if (!found) { //if none found then give this output 
+    if (!found)
         cout << "No paths found to " << state << " state airports." << endl;
-    }
-    clean_visited();//reset visited status aftrer running Dijkstra
-}
 
+    clean_visited();
+}
 /*
 Description:Find the shortest path between the given origin airport and destination airport with a given
 number of stops. The algorithm should provide the appropriate message if such path doesn’t exist.
@@ -397,7 +410,7 @@ void Graph<T>::short_path_stops(const Vertex<T>& src, const Vertex<T>& dest, int
             }
             temp_v = par;
         }
-        cout<<". The length is "<<dist[i_dest][edges_needed]<<". The cost is "<<total_cost<<"."<<endl;
+        cout<<". The lenght is "<<dist[i_dest][edges_needed]<<". The cost is "<<total_cost<<"."<<endl;
     }
 }
 
@@ -410,25 +423,14 @@ number of direct flight connections for Tampa airport is 4. The list of airports
 based on the total direct flight connections count, starting with the airports having the highest
 number of direct flight connections.
 */
+
 /*
 Description:
 Parameter:
 Return:
 */
-template <typename T>
+/*template <typename T>
 void Graph<T>::disp_connections_sort() {
-    struct ConnectionCount {
-        int total_connections;
-        int vertex_index;
-
-        bool operator<(const ConnectionCount& other) const {
-            if(total_connections != other.total_connections) {
-                return total_connections > other.total_connections;
-            }
-            return vertex_index < other.vertex_index;
-        }
-    };
-
     vector<int> inbound(vertices.size(), 0);
     vector<int> outbound(vertices.size(), 0);
 
@@ -439,140 +441,200 @@ void Graph<T>::disp_connections_sort() {
         }
     }
 
-    vector<ConnectionCount> connection_counts;
+    vector<pair<int, int>> connection_counts;
     connection_counts.reserve(vertices.size());
     for(int i = 0; i < vertices.size(); i++) {
-        connection_counts.push_back({inbound[i] + outbound[i], i});
+        connection_counts.push_back(make_pair(inbound[i] + outbound[i], i));
     }
 
-    MinHeap<ConnectionCount> heap(connection_counts);
+    sort(connection_counts.begin(), connection_counts.end(),
+        [](const pair<int, int>& a, const pair<int, int>& b) {
+            if(a.first != b.first) {
+                return a.first > b.first;
+            }
+            return a.second < b.second;
+        });
 
     cout << "Airports sorted by total direct flight connections:" << endl;
+    for(int i = 0; i < connection_counts.size(); i++) {
+        int vertex_index = connection_counts[i].second;
+        cout << vertices[vertex_index].getData() << ": " << connection_counts[i].first << endl;
+    }
+}*/
+
+template <typename T>
+void Graph<T>::disp_connections_sort() {
+
+    vector<int> inbound(vertices.size(), 0);
+    vector<int> outbound(vertices.size(), 0);
+
+    // Count inbound & outbound
+    for(int u = 0; u < edges.size(); u++) {
+        outbound[u] = edges[u].size();
+        for(int j = 0; j < edges[u].size(); j++) {
+            inbound[edges[u][j].dest]++;
+        }
+    }
+
+    // Use MinHeap of Edge
+    MinHeap<Edge> heap;
+
+    // Insert into heap
+    for(int i = 0; i < vertices.size(); i++) {
+        int total = inbound[i] + outbound[i];
+
+        // store total in weight (NEGATIVE for descending)
+        Edge e(0, i, -total, 0);
+        heap.insert(e);
+    }
+
+    cout << "Airports sorted by total direct flight connections:" << endl;
+
+    // Extract in sorted order
     while(!heap.isEmpty()) {
-        ConnectionCount current = heap.delete_min();
-        cout << vertices[current.vertex_index].getData() << ": " << current.total_connections << endl;
+        Edge e = heap.delete_min();
+
+        int index = e.dest;
+        int total = -e.weight; // convert back
+
+        cout << vertices[index].getData() << ": " << total << endl;
     }
 }
-
 /*
-Description: Create an undirected graph G_u from the original directed graph G using the following rules:
+6. Create an undirected graph G_u from the original directed graph G using the following rules:
 a. For each pair of vertices u and v, if there is only one directed edge(either (u,v) or (v,u))
 between them, you keep that single edge with its corresponding cost as an undirected
 weighted edge. You can ignore the distance on that edge.
 b. For each pair of vertices u and v, if there are two directed edges (u,v) and (v, u) between
 them, you keep the one with the minimum cost value as an undirected weighted edge. You
 can ignore the distance on that edge.
+*/
+/*
+Description:
 Parameter:
 Return:
 */
 template <typename T>
-void Graph<T>::cost_graph(){
-    const int n = vertices.size();
-
-    if(this->cost_graph_data == nullptr) {
-        this->cost_graph_data = new Graph<T>();
+void Graph<T>::cost_graph() {
+    if(cost_graph_data != nullptr) {
+        delete cost_graph_data;
     }
-
-    this->cost_graph_data->vertices = vertices;
-    this->cost_graph_data->edges.assign(n, vector<Edge>());
-
-    vector<vector<int>> best_cost(n, vector<int>(n, -1));
-
+    cost_graph_data = new Graph<T>();
+    const int n = vertices.size();
+    cost_graph_data->vertices = vertices;
+    cost_graph_data->edges.assign(n, vector<Edge>());
+    vector<vector<int>> best_cost(n, vector<int>(n, -1)); 
     for(int u = 0; u < n; u++) {
         for(int j = 0; j < edges[u].size(); j++) {
             int v = edges[u][j].dest;
-            int a = min(u, v);
-            int b = max(u, v);
+            int a = min(u,v);
+            int b = max(u,v);
             int cost = edges[u][j].cost;
-
             if(best_cost[a][b] == -1 || cost < best_cost[a][b]) {
                 best_cost[a][b] = cost;
             }
         }
     }
-
-    for(int u = 0; u < n; u++) {
-        this->cost_graph_data->edges[u].reserve(edges[u].size());
-    }
-
-    for(int u = 0; u < n; u++) {
+    for (int u = 0; u < n; u++) {
         for(int v = u; v < n; v++) {
             if(best_cost[u][v] != -1) {
-                this->cost_graph_data->add_edge(this->cost_graph_data->vertices[u], this->cost_graph_data->vertices[v], best_cost[u][v]);
+                cost_graph_data->add_edge(cost_graph_data->vertices[u], cost_graph_data->vertices[v], best_cost[u][v]);
             }
         }
     }
 }
 
 /*
-Description: Generate a Minimal Spanning Tree utilizing Prim’s algorithm on G_u that you created in the
+7.Generate a Minimal Spanning Tree utilizing Prim’s algorithm on G_u that you created in the
 previous step. The algorithm will output both the content of the constructed MST and its total cost.
 In this step, for each edge you need to consider the cost as weight to minimize the total cost. In the
 event of a disconnected graph, the algorithm will appropriately notify that an MST cannot be
 formed. Note: A connected graph is defined as one where there exists a path between every pair of
 vertices.
+*/
+/*
+Description:
 Parameter:
 Return:
 */
+
 template <typename T>
 void Graph<T>::prim_mst() {
-    if(cost_graph_data == nullptr) cost_graph();
 
-    const int n = cost_graph_data->vertices.size();
-    vector<bool> in_mst(n, false);
-    vector<int> min_cost(n, INT_MAX);
-    vector<int> parent(n, -1);
-    int total_cost = 0;
-    int visited_count = 0;
-
-    for (int start_node = 0; start_node < n; start_node++) {
-        if (in_mst[start_node]) 
-            continue;
-        MinHeap<Edge> heap;
-        min_cost[start_node] = 0;
-        heap.insert(Edge(start_node, start_node, 0, 0));
-        while (!heap.isEmpty()) {
-            Edge current = heap.delete_min();
-            int u = current.dest;
-
-            if (in_mst[u]) 
-                continue;
-
-            in_mst[u] = true;
-            visited_count++;
-            total_cost += current.weight;
-
-           for(int j = 0; j < cost_graph_data->edges[u].size(); j++) {
-            Edge& edge = cost_graph_data->edges[u][j];
-            int v = edge.dest;
-            int weight = edge.weight;
-
-            if(!in_mst[v] && weight < min_cost[v]) {
-                min_cost[v] = weight;
-                parent[v] = u;
-                heap.insert(Edge(u,v,weight,0));
-            }
-        }
+    if(cost_graph_data == nullptr) {
+        cost_graph();
     }
-}
-    // Now check if we visited anything at all
-    if (visited_count == 0) {
+    Graph<T> g = *cost_graph_data;  // get undirected graph
+
+    int n = g.vertices.size();
+    if(n == 0) {
         cout << "MST cannot be formed." << endl;
         return;
     }
 
-    // Output results
+    vector<bool> inMST(n, false);
+    MinHeap<Edge> heap;
+
+    int total_cost = 0;
+    int edges_used = 0;
+
+    // Start from vertex 0
+    inMST[0] = true;
+
+    // Push all edges from vertex 0
+    for(int i = 0; i < g.edges[0].size(); i++) {
+        Edge e = g.edges[0][i];
+        heap.insert(e);
+    }
+
     cout << "Prim MST:" << endl;
-    for (int i = 0; i < n; i++) {
-        if (parent[i] != -1) {
-            cout << cost_graph_data->vertices[parent[i]].getData() << " - " 
-                 << cost_graph_data->vertices[i].getData() << ": " << min_cost[i] << endl;
+
+    while(!heap.isEmpty() && edges_used < n - 1) {
+
+        Edge e = heap.delete_min();
+
+        int u = e.src;
+        int v = e.dest;
+
+        // Skip if both already in MST
+        if(inMST[u] && inMST[v]) {
+            continue;
+        }
+
+        int new_vertex;
+        if(inMST[u]) {
+            new_vertex = v;
+        } else {
+            new_vertex = u;
+        }
+
+        cout << g.vertices[u].getData()
+             << " - "
+             << g.vertices[v].getData()
+             << ": "
+             << e.weight << endl;
+
+        total_cost += e.weight;
+        edges_used++;
+
+        inMST[new_vertex] = true;
+
+        // Add edges from new vertex
+        for(int i = 0; i < g.edges[new_vertex].size(); i++) {
+            Edge next = g.edges[new_vertex][i];
+            if(!inMST[next.dest]) {
+                heap.insert(next);
+            }
         }
     }
+
+    if(edges_used != n - 1) {
+        cout << "MST cannot be formed." << endl;
+        return;
+    }
+
     cout << "Total cost: " << total_cost << endl;
 }
-
-
 /*
 Description:Generate a Minimal Spanning Tree using Kruskal’s algorithm on G_u that you created in the
 previous step. The algorithm will output both the content of the constructed MST and its total cost.
@@ -582,30 +644,29 @@ minimum spanning tree for each connected component
 Parameter:
 Return:
 */
-template <typename T>
+
+template<typename T>
 void Graph<T>::kruskal_mst() {
+
     if(cost_graph_data == nullptr) {
         cost_graph();
     }
 
     const int n = cost_graph_data->vertices.size();
-    if(n == 0) {
-        cout << "Kruskal MST:" << endl;
-        cout << "Total cost: 0" << endl;
-        return;
-    }
+    if(n == 0) return;
 
-    vector<Edge> all_edges;
+    MinHeap<Edge> heap;
+
+    // Insert all edges (only one direction)
     for(int u = 0; u < n; u++) {
         for(int j = 0; j < cost_graph_data->edges[u].size(); j++) {
-            const Edge& edge = cost_graph_data->edges[u][j];
-            if(edge.src < edge.dest) {
-                all_edges.push_back(edge);
+            Edge e = cost_graph_data->edges[u][j];
+
+            if(e.src < e.dest) {
+                heap.insert(e);
             }
         }
     }
-
-    MinHeap<Edge> edge_heap(all_edges);
 
     vector<int> parent(n);
     for(int i = 0; i < n; i++) {
@@ -613,33 +674,36 @@ void Graph<T>::kruskal_mst() {
     }
 
     vector<Edge> mst_edges;
-    mst_edges.reserve(n > 0 ? n - 1 : 0);
     int total_cost = 0;
 
-    while(!edge_heap.isEmpty()) {
-        Edge edge = edge_heap.delete_min();
-        int root_u = find_set(parent, edge.src);
-        int root_v = find_set(parent, edge.dest);
+    while(!heap.isEmpty() && mst_edges.size() < n - 1) {
+
+        Edge current_edge = heap.delete_min();
+
+        int root_u = find_set(parent, current_edge.src);
+        int root_v = find_set(parent, current_edge.dest);
 
         if(root_u != root_v) {
             union_set(parent, root_u, root_v);
-            mst_edges.push_back(edge);
-            total_cost += edge.weight;
+
+            mst_edges.push_back(current_edge);
+            total_cost += current_edge.weight;
         }
     }
 
     cout << "Kruskal MST:" << endl;
+
     for(int i = 0; i < mst_edges.size(); i++) {
-        const Edge& edge = mst_edges[i];
-        cout << cost_graph_data->vertices[edge.src].getData()
+        cout << cost_graph_data->vertices[mst_edges[i].src].getData()
              << " - "
-             << cost_graph_data->vertices[edge.dest].getData()
+             << cost_graph_data->vertices[mst_edges[i].dest].getData()
              << ": "
-             << edge.weight
-             << endl;
+             << mst_edges[i].weight << endl;
     }
+
     cout << "Total cost: " << total_cost << endl;
 }
+
 /*
 Description:
 Parameter:
