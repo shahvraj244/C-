@@ -12,7 +12,6 @@ int main() {
         cout << "--- Graph-Based Airport Connectivity and Flight Route Optimization System ---" << endl;
         Graph<string> airportGraph("airports.csv");
         cout<<endl;
-        //cout << "Graph loaded successfully.\n" << endl;
         
         Vertex<string> vATL("ATL"); 
         Vertex<string> vIAD("IAD"); 

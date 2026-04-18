@@ -40,7 +40,7 @@ class Graph {
         void clean_visited();
         void DFS_helper(Vertex<T>& ver);
         int get_vertex_index(const Vertex<T>& ver);
-        vector<string> vertex_cities;
+        vector<string> vertex_cities;//gets the cities w/State (Tampa,FL)
         //Undirected Graph G_u 
         Graph<T>* cost_graph_data; 
         //helper functions for kruskal 
