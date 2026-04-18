@@ -1,70 +1,107 @@
 #include "MinHeap.h"
 #include <iostream>
-using namespace std;
 
-// ── insert ────────────────────────────────────────────────────────────────────
-// Add val to the end of the array, then bubble it UP to the right spot
-template <typename T>
-void MinHeap<T>::insert(T val) {
-    data.push_back(val);          // add to the end
-    percolate_up(data.size() - 1); // bubble it up
+template<typename T>
+MinHeap<T>::MinHeap(vector<T> v) : data(v), size(v.size()) {
+    for(int i = size / 2 - 1; i >= 0; i--) {
+        percolate_down(i);
+    }
 }
 
-// ── delete_min ────────────────────────────────────────────────────────────────
-// The minimum is always at index 0
-// Swap it with the last element, remove last, then push new root DOWN
-template <typename T>
+template<typename T>
+void MinHeap<T>::insert(const T& val) {
+    data.push_back(val);
+    size++;
+    int n = data.size() - 1; //index of the last node
+    //percolate UP
+    while (n > 0 && data[n] < data[(n - 1) / 2]) {
+        swap(data[n], data[(n - 1) / 2]);
+        n = (n - 1) / 2; //make cur index equal to the parent index
+    }
+}
+
+template<typename T>
+void MinHeap<T>::print() const {
+    int cur_level = 0;
+    int new_level = 1;
+
+    for(const T& i : data) {
+        cout << i << ' ';
+        cur_level++;
+        if (cur_level == new_level) {
+            cout << "\n";
+            new_level *= 2;
+            cur_level = 0;
+        }
+    }
+    cout << "\n----------------------------\n";
+}
+
+
+template<typename T>
 T MinHeap<T>::delete_min() {
-    T min_val = data[0];                    // save the minimum to return
-    data[0] = data[data.size() - 1];        // move last element to the top
-    data.pop_back();                        // remove the last element
-    if (!data.empty()) {
-        percolate_down(0);                  // push the new root down
+    if (data.empty()) {
+        throw string("delete_min: Empty Heap\n");
     }
-    return min_val;
+
+    T res = data[0];
+    size--;
+
+    if(data.size() == 1) {
+        data.pop_back();
+        return res;
+    }
+
+    data[0] = data[data.size() - 1]; //set the root with the value of the last node
+    data.pop_back(); //deletes the last node
+
+    //percolate DOWN
+    percolate_down(0);
+
+    return res;
 }
 
-// ── percolate_up ──────────────────────────────────────────────────────────────
-// Element at index i is too small — swap it with its parent until it's in place
-template <typename T>
-void MinHeap<T>::percolate_up(int i) {
-    // Keep going while we are not at the root (index 0)
-    while (i > 0) {
-        int parent = (i - 1) / 2; // parent is always at (i-1)/2
-        if (data[i] < data[parent]) {
-            swap_elements(i, parent); // swap with parent if we are smaller
-            i = parent;               // move up to where parent was
-        } else {
-            break; // we are in the right place — stop
-        }
-    }
-}
 
-// ── percolate_down ────────────────────────────────────────────────────────────
-// Element at index i is too big — swap it with its smallest child until in place
-template <typename T>
+template<typename T>
 void MinHeap<T>::percolate_down(int i) {
-    int n = data.size();
-
-    while (true) {
-        int left  = 2 * i + 1; // left child index
-        int right = 2 * i + 2; // right child index
-        int smallest = i;       // assume current is smallest
-
-        // Is left child smaller than current?
-        if (left < n && data[left] < data[smallest]) {
-            smallest = left;
-        }
-        // Is right child smaller than current smallest?
-        if (right < n && data[right] < data[smallest]) {
-            smallest = right;
-        }
-
-        if (smallest != i) {
-            swap_elements(i, smallest); // swap with the smallest child
-            i = smallest;               // continue from new position
-        } else {
-            break; // we are in the right place — stop
-        }
+    if (data.empty() || i >= data.size() || i < 0) {
+        return;
     }
+
+    int parent_index = i;
+    int kids_min_index = i;
+
+    do {
+        //no kids
+        if (parent_index * 2 + 1 >= data.size()) {
+            break;
+        }
+        else if (parent_index * 2 + 2 < data.size()){ //has 2 kids
+            kids_min_index = min_index(parent_index * 2 + 1, parent_index * 2 + 2);
+
+        }
+        else if (parent_index * 2 + 1 < data.size()) { //has left kid
+            kids_min_index = parent_index * 2 + 1;
+        }
+        //check is the smallest kid smaller than the parent
+        if (data[kids_min_index] < data[parent_index]) {
+            swap(data[parent_index], data[kids_min_index]);
+            parent_index = kids_min_index;
+        }
+        else {
+            break;
+        }
+
+    } while(1);
+
+}
+
+
+template<typename T>
+int MinHeap<T>::min_index(int i1, int i2) const {
+    if (i1 >= data.size() || i2 >= data.size() || i1 < 0 || i2 < 0) {
+        throw string ("min_index: incorrect index");
+    }
+
+    return (data[i1] < data[i2] ? i1 : i2);
 }

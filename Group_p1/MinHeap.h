@@ -1,40 +1,33 @@
 #ifndef MINHEAP_H
 #define MINHEAP_H
-
 #include <vector>
-using namespace std;
+using namespace std; 
 
-// MinHeap always keeps the SMALLEST element at the top
-// We use this in Dijkstra and Prim to always pick the shortest/cheapest edge next
-template <typename T>
+template <typename T> 
 class MinHeap {
-public:
-    vector<T> data; // stores all elements in heap order
+    public:
+        MinHeap() : size(0) {}
 
-    // Check if heap has no elements
-    bool isEmpty() {
-        return data.size() == 0;
-    }
+        MinHeap(vector<T> v);
+        void insert(const T& val);
+        void print() const; 
+        T delete_min(); 
 
-    // Add a new element to the heap
-    void insert(T val);
+        bool isEmpty() const {
+            return data.empty(); 
+        }
+    private:
+        vector<T> data;
+        int size; 
 
-    // Remove and return the smallest element
-    T delete_min();
+        void swap(T& v1, T& v2) {
+            T tmp = v1;
+            v1 = v2; 
+            v2 = tmp; 
+        }
 
-private:
-    // Move element at index i UP until heap order is restored
-    void percolate_up(int i);
-
-    // Move element at index i DOWN until heap order is restored
-    void percolate_down(int i);
-
-    // Swap two elements
-    void swap_elements(int i, int j) {
-        T temp = data[i];
-        data[i] = data[j];
-        data[j] = temp;
-    }
+        void percolate_down(int i); 
+        int min_index(int i1, int i2) const; 
 };
 
 #endif
