@@ -17,7 +17,7 @@ class Graph {
         //Dijkstra Shortest Path returns weight
         int dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest);
         //shortest path to airports in some state that hops to diff airports 
-        void short_paths_state(const Vertex<T>& src, const string& state);
+        void short_path_state(const Vertex<T>& src, const string& state);
         //short path with stops 
         void short_path_stops(const Vertex<T>& src, const Vertex<T>& dest, int stops);
         //Disp connections 

@@ -280,7 +280,7 @@ Parameter: src - source vertex, state - destination state abbreviation (e.g. "FL
 Return: nothing
 */
 template<typename T>
-void Graph<T>::short_paths_state(const Vertex<T>& src, const string& state) {
+void Graph<T>::short_path_state(const Vertex<T>& src, const string& state) {
     int i_src = get_vertex_index(src);
     if(i_src == -1) {
         cout << "Origin airport not found." << endl;
