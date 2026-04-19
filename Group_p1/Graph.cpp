@@ -71,7 +71,7 @@ Parameter: ver - starting vertex for BFS
 Return: void - nothing 
 */
 template <typename T> 
-void Graph<T>::BFS(Vertex<T>& ver) {
+void Graph<T>::BFS(Vertex<T>& ver, bool print) {
     clean_visited();
     int start_index = get_vertex_index(ver); 
     if(start_index == -1) {
@@ -85,7 +85,7 @@ void Graph<T>::BFS(Vertex<T>& ver) {
 
     while(head < q.size()) {
         int i = q[head++]; 
-        cout<<vertices[i].getData() << " "; 
+        if(print) cout << vertices[i].getData() << " "; 
 
         for(int j = 0; j < edges[i].size(); j++) {
             int adjacent_ver = edges[i][j].dest;
@@ -103,19 +103,19 @@ Parameter: ver - the vertex to start DFS from
 Return: nothing 
 */
 template <typename T> 
-void Graph<T>::DFS_helper(Vertex<T>& ver) {
+void Graph<T>::DFS_helper(Vertex<T>& ver, bool print) {
     int i = get_vertex_index(ver); 
-    if(i == -1) 
-        return;
+    if(i == -1) return;
     vertices[i].setVisited(true);
-    cout << vertices[i].getData() << " ";
+    if(print) cout << vertices[i].getData() << " ";
     for(int j = 0; j < edges[i].size(); j++) {
         int adjacent_ver = edges[i][j].dest;
-        if(vertices[adjacent_ver].getVisited() == false) {
-            DFS_helper(vertices[adjacent_ver]); 
+        if(!vertices[adjacent_ver].getVisited()) {
+            DFS_helper(vertices[adjacent_ver], print);
         }
     }
 }
+
 /*
 Description: Resets the visited status of all vertices in the graph to false. 
 This is a helper function used before and after performing graph traversals 
@@ -272,49 +272,67 @@ int Graph<T>::dijkstra_shortest_path(const Vertex<T>& src, const Vertex<T>& dest
 
 
 /*
-Description: Find all shortest paths between the given origin airport and all the airports in the destination state.
-The algorithm should output all the paths and their lengths. The algorithm should provide the
-appropriate message if no such paths exist
-Parameter: src - source vertex, state - dest state to search for airports 
-Return:  nothing
+Description: Find all shortest paths between the given origin airport and all the airports in the 
+destination state. DFS is first used to identify which airports in the target state are reachable 
+from the source. Dijkstra then computes the shortest path and cost to each of those airports.
+The algorithm outputs all paths and their lengths, or an appropriate message if no paths exist.
+Parameter: src - source vertex, state - destination state abbreviation (e.g. "FL")
+Return: nothing
 */
 template<typename T>
 void Graph<T>::short_paths_state(const Vertex<T>& src, const string& state) {
-    int i_src = get_vertex_index(src); //get index of source vertex 
-    if(i_src == -1) { //if if source exist 
+    int i_src = get_vertex_index(src);
+    if(i_src == -1) {
         cout << "Origin airport not found." << endl;
         return;
     }
-    clean_visited(); //reset visited
-    vector<int> distances(vertices.size(), INT_MAX); //set distance as infinity
-    vector<int> parent(vertices.size(), -1); //reconsturct path using parent array 
-    vector<int> total_costs(vertices.size(), 0); //total cost to reach each vertex
+    //DFS marks all verticies from source
+    clean_visited();
+    DFS_helper(vertices[i_src], false);
+
+    //all reachable airports located in the target state
+    vector<int> state_airports;
+    for(int i = 0; i < vertices.size(); i++) {
+        if(vertices[i].getVisited() && vertex_cities[i].find(state) != string::npos) {
+            state_airports.push_back(i);
+        }
+    }
+    clean_visited();
+    if(state_airports.empty()) {
+        cout << "No paths found to " << state << " state airports." << endl;
+        return;
+    }
+
+    // Step 3: Dijkstra from source to compute shortest distance and cost to all vertices
+    vector<int> distances(vertices.size(), INT_MAX);
+    vector<int> parent(vertices.size(), -1);
+    vector<int> total_costs(vertices.size(), 0);
     distances[i_src] = 0;
 
-    MinHeap<Edge> heap; //min heap to store edges of shortest distances 
+    MinHeap<Edge> heap;
     int cur_ver = i_src;
     int visited_count = 0;
-    //basically recreasting dijkstra but finding the shortest path to all airports in state
-    while(visited_count < vertices.size()) {//traverse through unvisited vertices 
+
+    while(visited_count < vertices.size()) {
         int u = cur_ver;
-        for(int j = 0; j < edges[u].size(); j++) {//traverse through adjacent edges of current vertex
+        for(int j = 0; j < edges[u].size(); j++) {
             int v = edges[u][j].dest;
-            if(!vertices[v].getVisited()) { //if vertext not visited add edge to heap 
-                heap.insert(edges[u][j]); 
-                int new_dist = distances[u] + edges[u][j].weight; //calc new dist 
-                if (new_dist < distances[v]) { //check if path u is shorter than v 
+            if(!vertices[v].getVisited()) {
+                heap.insert(edges[u][j]);
+                int new_dist = distances[u] + edges[u][j].weight;
+                if(new_dist < distances[v]) {
                     distances[v] = new_dist;
                     parent[v] = u;
-                    total_costs[v] = total_costs[u] + edges[u][j].cost; //update total cost to reach v using u 
+                    total_costs[v] = total_costs[u] + edges[u][j].cost;
                 }
             }
         }
-        vertices[u].setVisited(true); //mark vertex as visited 
-        visited_count++;//incremet visited count 
-        bool found_next = false; //get next vertex 
-        while(!heap.isEmpty()) { //while not empty get next edge 
+        vertices[u].setVisited(true);
+        visited_count++;
+        bool found_next = false;
+        while(!heap.isEmpty()) {
             Edge e = heap.delete_min();
-            if (!vertices[e.dest].getVisited()) { //if not visited then we want to visit it next 
+            if(!vertices[e.dest].getVisited()) {
                 cur_ver = e.dest;
                 found_next = true;
                 break;
@@ -322,79 +340,106 @@ void Graph<T>::short_paths_state(const Vertex<T>& src, const string& state) {
         }
         if(!found_next) break;
     }
+    clean_visited();
+
+    // Step 4: Output shortest path for each DFS-discovered state airport
     bool found = false;
-    for(int i = 0; i < vertices.size(); i++) { //check for airports in state and output path and distacne
-        if(vertex_cities[i].find(state) != string::npos) { //if not found in state then skip 
-            if(distances[i] != INT_MAX) { //if path found then output distance and path 
-                found = true;
-                vector<T> path;
-                for(int cur = i; cur != -1; cur = parent[cur])
-                    path.push_back(vertices[cur].getData());
-                cout << "Shortest route to " << vertices[i].getData()
-                     << " (" << vertex_cities[i] << "): ";
-                for (int p = path.size() - 1; p >= 0; p--)
-                    cout << path[p] << (p == 0 ? "" : " -> ");
-                cout << ". The length is " << distances[i]
-                     << ". The cost is " << total_costs[i] << "." << endl;
-            }
+    for(int i = 0; i < state_airports.size(); i++) {
+        int idx = state_airports[i];
+        if(distances[idx] != INT_MAX) {
+            found = true;
+            vector<T> path;
+            for(int cur = idx; cur != -1; cur = parent[cur])
+                path.push_back(vertices[cur].getData());
+            cout << "Shortest route to " << vertices[idx].getData()
+                 << " (" << vertex_cities[idx] << "): ";
+            for(int p = path.size() - 1; p >= 0; p--)
+                cout << path[p] << (p == 0 ? "" : " -> ");
+            cout << ". The length is " << distances[idx]
+                 << ". The cost is " << total_costs[idx] << "." << endl;
         }
     }
-    if (!found)
+    if(!found)
         cout << "No paths found to " << state << " state airports." << endl;
-
-    clean_visited();
 }
+
+
 /*
-Description:Find the shortest path between the given origin airport and destination airport with a given
-number of stops. The algorithm should provide the appropriate message if such path doesn’t exist.
-Parameter: src - source vertex, dest - destination vertex, stops - number of stops allowed in path
-Return:  nothing
+Description: Find the shortest path between the given origin airport and destination airport with
+exactly a given number of stops. BFS is used with (vertex, edge_count) pairs in the queue to 
+explore paths level by level, where each level represents one additional flight hop. This enforces
+the exact stop count while tracking the shortest weighted distance. Outputs the path and cost, 
+or an appropriate message if no path exists.
+Parameter: src - source vertex, dest - destination vertex, stops - number of intermediate stops
+Return: nothing
 */
 template<typename T>
 void Graph<T>::short_path_stops(const Vertex<T>& src, const Vertex<T>& dest, int stops) {
-    int i_src = get_vertex_index(src); //source vertex 
-    int i_dest = get_vertex_index(dest); //destination vertex 
-    if(i_src == -1 || i_dest == -1) {//cehck for a vetex if it exists in graph 
-        cout<<"Shortest route from "<<src.getData()<<" to "<<dest.getData()<<" with "<<stops<<" stops: None"<<endl;
+    int i_src = get_vertex_index(src);
+    int i_dest = get_vertex_index(dest);
+
+    if(i_src == -1 || i_dest == -1) {
+        cout << "Shortest route from " << src.getData() << " to " << dest.getData()
+             << " with " << stops << " stops: None" << endl;
         return;
     }
-    int edges_needed = stops + 1; // n stops = n + 1 edges
-    vector<vector<int>> dist(vertices.size(), vector<int>(edges_needed + 1, INT_MAX)); //shortest distance to v using edges
-    vector<vector<int>> parent(vertices.size(), vector<int>(edges_needed + 1, -1)); //reconsturct path using parent arr 
+
+    int edges_needed = stops + 1; // n stops = n+1 edges
+    int n = vertices.size();
+
+    // dist[v][e] = shortest distance to reach vertex v using exactly e edges
+    vector<vector<int>> dist(n, vector<int>(edges_needed + 1, INT_MAX));
+    // parent[v][e] = predecessor of v when reached with exactly e edges
+    vector<vector<int>> parent(n, vector<int>(edges_needed + 1, -1));
     dist[i_src][0] = 0;
-    //find shortest path for each edge count edges
-    for(int e = 1; e <= edges_needed; e++) { //edge count 
-        for(int u = 0; u < vertices.size(); u++) { //traverse through vertices to find shortest path to vertex edge 
-            if(dist[u][e-1] == INT_MAX) continue; //if no path to u with e-1 edges then skip 
-            for(int j = 0; j < edges[u].size(); j++) { //traverse through adjacent edges of u to find path 
-                int v = edges[u][j].dest; //destination vertex of edge 
-                int weight = edges[u][j].weight; //weight of edge
-                if(dist[u][e-1] != INT_MAX && dist[u][e-1] + weight < dist[v][e]) {
-                    dist[v][e] = dist[u][e-1] + weight;
-                    parent[v][e] = u;
-                }
+
+    // BFS queue stores (vertex_index, edges_used) pairs
+    // vector with head pointer simulates queue without STL queue
+    vector<pair<int,int>> bfs_queue;
+    bfs_queue.push_back({i_src, 0});
+    int head = 0;
+
+    // BFS: each level of the queue represents one additional hop
+    while(head < bfs_queue.size()) {
+        int u = bfs_queue[head].first;  // current vertex
+        int e = bfs_queue[head].second; // edges used to reach u
+        head++;
+
+        if(e >= edges_needed) continue; // stop limit reached, do not expand further
+
+        for(int j = 0; j < edges[u].size(); j++) {
+            int v = edges[u][j].dest;
+            int w = edges[u][j].weight;
+            // If path through u to v with e+1 edges is shorter, update and enqueue
+            if(dist[u][e] != INT_MAX && dist[u][e] + w < dist[v][e + 1]) {
+                dist[v][e + 1] = dist[u][e] + w;
+                parent[v][e + 1] = u;
+                bfs_queue.push_back({v, e + 1});
             }
         }
     }
-    //output design for shortest path with stops 
-    cout<<"Shortest route from "<<src.getData()<<" to "<<dest.getData()<<" with "<<stops<<" stops: ";
-    if(dist[i_dest][edges_needed] == INT_MAX) { //if no path found the none as output 
-        cout<<"None"<<endl;
-    } else { 
+
+    cout << "Shortest route from " << src.getData() << " to " << dest.getData()
+         << " with " << stops << " stops: ";
+
+    if(dist[i_dest][edges_needed] == INT_MAX) {
+        cout << "None" << endl;
+    } else {
+        // Reconstruct path by tracing parent array from dest back to src
         vector<T> path;
-        int cur = i_dest, e = edges_needed; 
-        while(cur != -1 && e >= 0) {//reconstruct path from dest to source using parent arr
-            path.push_back(vertices[cur].getData());//add current vertex to path 
-            cur = parent[cur][e];
-            e--;
+        int cur = i_dest;
+        for(int step = edges_needed; step >= 0; step--) {
+            path.push_back(vertices[cur].getData());
+            if(step > 0) cur = parent[cur][step];
         }
-        for(int i = path.size() - 1; i >= 0; i--) { //output path from source to dest 
+        for(int i = path.size() - 1; i >= 0; i--)
             cout << path[i] << (i == 0 ? "" : " -> ");
-        }
-        int total_cost = 0; //calc total cost of path by traversing through parrent arr and sum cost of edges 
-        int temp_v = i_dest; 
-        for(int e = edges_needed; e > 0; e--) { //find parent vertex and add cost 
-            int par = parent[temp_v][e];
+
+        // Calculate total cost by retracing edges along reconstructed path
+        int total_cost = 0;
+        int temp_v = i_dest;
+        for(int step = edges_needed; step > 0; step--) {
+            int par = parent[temp_v][step];
             for(int j = 0; j < edges[par].size(); j++) {
                 if(edges[par][j].dest == temp_v) {
                     total_cost += edges[par][j].cost;
@@ -403,10 +448,10 @@ void Graph<T>::short_path_stops(const Vertex<T>& src, const Vertex<T>& dest, int
             }
             temp_v = par;
         }
-        cout<<". The lenght is "<<dist[i_dest][edges_needed]<<". The cost is "<<total_cost<<"."<<endl;
+        cout << ". The length is " << dist[i_dest][edges_needed]
+             << ". The cost is " << total_cost << "." << endl;
     }
 }
-
 /*
 Description: Count and display total direct flight connections to each airport. You should consider both
 outbound and inbound flights. For instance, if you can directly fly to Tampa airport only from
@@ -495,83 +540,57 @@ vertices.
 Parameter: nothing
 Return: nothing
 */
-
 template <typename T>
 void Graph<T>::prim_mst() {
-
     if(cost_graph_data == nullptr) {
         cost_graph();
     }
-    Graph<T> g = *cost_graph_data;  // get undirected graph
+    const int n = cost_graph_data->vertices.size();
+    if(n == 0) return;
 
-    int n = g.vertices.size();
-    if(n == 0) {
-        cout << "MST cannot be formed." << endl;
-        return;
-    }
-
-    vector<bool> inMST(n, false);
-    MinHeap<Edge> heap;
-
+    vector<int> min_cost(n, INT_MAX);
+    vector<int> parent(n, -1);
+    vector<bool> in_mst(n, false);
     int total_cost = 0;
-    int edges_used = 0;
+    int visited_count = 0;
 
-    // Start from vertex 0
-    inMST[0] = true;
+    for (int i = 0; i < n; i++) {
+        if (!in_mst[i]) {
+            MinHeap<Edge> heap;
+            min_cost[i] = 0;
+            heap.insert(Edge(i, i, 0, 0));
 
-    // Push all edges from vertex 0
-    for(int i = 0; i < g.edges[0].size(); i++) {
-        Edge e = g.edges[0][i];
-        heap.insert(e);
-    }
+            while (!heap.isEmpty()) {
+                Edge current = heap.delete_min();
+                int u = current.dest;
+                if (in_mst[u]) continue;
+                in_mst[u] = true;
+                visited_count++;
+                total_cost += current.weight;
 
-    cout << "Prim MST:" << endl;
+                for (int j = 0; j < cost_graph_data->edges[u].size(); j++) {
+                    Edge& edge = cost_graph_data->edges[u][j];
+                    int v = edge.dest;
+                    int weight = edge.weight;
 
-    while(!heap.isEmpty() && edges_used < n - 1) {
-
-        Edge e = heap.delete_min();
-
-        int u = e.src;
-        int v = e.dest;
-
-        // Skip if both already in MST
-        if(inMST[u] && inMST[v]) {
-            continue;
-        }
-
-        int new_vertex;
-        if(inMST[u]) {
-            new_vertex = v;
-        } else {
-            new_vertex = u;
-        }
-
-        cout << g.vertices[u].getData()
-             << " - "
-             << g.vertices[v].getData()
-             << ": "
-             << e.weight << endl;
-
-        total_cost += e.weight;
-        edges_used++;
-
-        inMST[new_vertex] = true;
-
-        // Add edges from new vertex
-        for(int i = 0; i < g.edges[new_vertex].size(); i++) {
-            Edge next = g.edges[new_vertex][i];
-            if(!inMST[next.dest]) {
-                heap.insert(next);
+                    if (!in_mst[v] && weight < min_cost[v]) {
+                        min_cost[v] = weight;
+                        parent[v] = u;
+                        heap.insert(Edge(u, v, weight, 0));
+                    }
+                }
             }
         }
     }
-
-    if(edges_used != n - 1) {
-        cout << "MST cannot be formed." << endl;
-        return;
+    cout << "Prim MST:" << endl;
+    for (int v = 0; v < n; v++) {
+        if (parent[v] != -1 && parent[v] != v) {
+            cout << cost_graph_data->vertices[parent[v]].getData()
+                 <<" - "<< cost_graph_data->vertices[v].getData()
+                 <<": "<< min_cost[v] << endl;
+        }
     }
-
-    cout << "Total cost: " << total_cost << endl;
+    cout <<"Total cost: "<< total_cost<<endl;
 }
 /*
 Description:Generate a Minimal Spanning Tree using Kruskal’s algorithm on G_u that you created in the
